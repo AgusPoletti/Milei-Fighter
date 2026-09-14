@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>La Batalla contra los zurdos mugrosos</title>
+  <style>
+    :root { --ink:#111827; --blue:#60a5fa; --cream:#fff7e8; --pink:#ff6b9a; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; background:#0b1020; color:var(--cream); font-family:system-ui,-apple-system,Segoe UI,sans-serif; overflow:hidden; }
+    body { display:grid; place-items:center; }
+    .cabinet { width:min(100vw, 1040px); height:min(100vh, 820px); position:relative; background:#090d1a; border:2px solid #3e4a70; box-shadow:0 0 0 7px #11182b, 0 24px 80px #000a; overflow:hidden; }
+    canvas { width:100%; height:100%; display:block; image-rendering:auto; }
+    .scanlines { pointer-events:none; position:absolute; inset:0; z-index:2; opacity:.12; background:repeating-linear-gradient(0deg,transparent 0 3px,#fff 4px,#fff 5px); mix-blend-mode:overlay; }
+    .start { position:absolute; inset:0; z-index:3; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at 50% 35%,#21345d99,#070b16eF 62%); text-align:center; }
+    .panel { max-width:680px; background:#101a31eF; border:1px solid #7087bd; padding:26px 28px 22px; box-shadow:12px 12px 0 #050710; }
+    h1 { margin:0; font-size:clamp(34px,7vw,72px); line-height:.9; letter-spacing:-.07em; color:#fbd38d; text-shadow:4px 4px 0 #ee526b; }
+    .kicker { font-weight:800; letter-spacing:.18em; color:#8cc7ff; font-size:12px; margin:0 0 12px; }
+    .subtitle { color:#dce5fb; font-size:clamp(14px,2vw,18px); margin:18px auto 22px; max-width:520px; }
+    button { cursor:pointer; border:0; font:inherit; font-weight:900; letter-spacing:.08em; padding:13px 22px; color:#0b1020; background:#fbd38d; box-shadow:5px 5px 0 #ee526b; text-transform:uppercase; }
+    button:hover { transform:translate(2px,2px); box-shadow:3px 3px 0 #ee526b; }
+    .hint { margin:18px 0 0; font-size:12px; color:#a9b8d7; }
+    .touch { display:none; position:absolute; z-index:4; bottom:14px; left:12px; right:12px; justify-content:space-between; align-items:end; pointer-events:none; touch-action:none; }
+    .touch button { pointer-events:auto; -webkit-tap-highlight-color:transparent; user-select:none; touch-action:none; opacity:.86; width:58px; height:58px; min-width:58px; padding:0; border:2px solid #c9dcff; border-radius:16px; font-size:24px; line-height:1; box-shadow:0 4px 0 #38527c; background:#172b50dd; color:#fff; }
+    .touch button:active { transform:translateY(3px); box-shadow:0 1px 0 #38527c; background:#31578f; }
+    .touch .pad { display:grid; grid-template-columns:repeat(3,58px); grid-template-rows:repeat(2,58px); gap:7px; pointer-events:none; }
+    .touch .pad button { pointer-events:auto; }
+    .touch .up { grid-column:2; grid-row:1; }
+    .touch .left { grid-column:1; grid-row:2; }
+    .touch .down { grid-column:2; grid-row:2; }
+    .touch .right { grid-column:3; grid-row:2; }
+    .touch .fire { width:82px; height:82px; min-width:82px; border-radius:50%; font-size:30px; background:#9d243d; border-color:#ffb1bd; box-shadow:0 5px 0 #5b1020; }
+    .touch .special { width:62px; height:62px; min-width:62px; border-radius:50%; font-size:23px; background:#155e75; border-color:#67e8f9; box-shadow:0 4px 0 #083344; }
+    @media (max-width:700px) { .cabinet { border:0; box-shadow:none; width:100vw; height:100dvh; } .touch { display:flex; } .panel { padding:22px 18px; } .hint { display:none; } }
+  </style>
+</head>
+<body>
+  <main class="cabinet">
+    <canvas id="game" aria-label="Juego espacial satírico Milei Fighter"></canvas>
+    <div class="scanlines"></div>
+    <section class="start" id="start">
+      <div class="panel">
+        <p class="kicker">UN ARCADE DE POLÍTICA-FICCIÓN</p>
+        <h1>MILEI<br>FIGHTER</h1>
+        <p class="subtitle">La batalla definitiva por el joystick nacional.<br>Esquiva mates, humo y promesas espaciales.</p>
+        <button id="startBtn">Iniciar batalla</button>
+        <p class="hint">Mover: flechas o WASD &nbsp; · &nbsp; Disparar: ESPACIO &nbsp; · &nbsp; Pausa: P</p>
+      </div>
+    </section>
+    <div class="touch" aria-label="Controles táctiles"><div class="pad"><button class="up" data-key="ArrowUp" aria-label="Arriba">▲</button><button class="left" data-key="ArrowLeft" aria-label="Izquierda">◀</button><button class="down" data-key="ArrowDown" aria-label="Abajo">▼</button><button class="right" data-key="ArrowRight" aria-label="Derecha">▶</button></div><button class="special" data-key="KeyE" aria-label="Lágrimas de zurdos">💧</button><button class="fire" data-key="Space" aria-label="Disparar">🔥</button></div>
+  </main>
+  <script>
+  (() => {
+    const canvas = document.querySelector('#game'), ctx = canvas.getContext('2d'), start = document.querySelector('#start');
+    let W=900,H=700,dpr=1,last=0,raf=0,state='menu',score=0,lives=3,level=1,wave=1,waveSpawned=0,waveSize=6,waveBreak=0,bossActive=false,bossDefeated=false,dialogueActive=false,dialogueStep=0,dialogueTime=0,fmiActive=false,fmiUsed=false,shake=0,spawn=0,shot=0,enemyShot=0,bgScroll=0,specialCharge=0,specialTime=0,specialShot=0,specialKeyWasDown=false,player,bullets=[],enemyBullets=[],enemies=[],explosions=[],cristiDeaths=[],particles=[],stars=[];
+    const f16Sprite = new Image();
+    f16Sprite.src = 'player_f16.png';
+    const bomboneraSprite = new Image();
+    bomboneraSprite.src = 'enemy_bombonera.png';
+    const projectileSprite = new Image();
+    projectileSprite.src = 'projectiles.png';
+    const explosionSprite = new Image();
+    explosionSprite.src = 'explosions.png';
+    const backgroundSprite = new Image();
+    backgroundSprite.src = 'Background 1.png';
+    const droneSprite = new Image();
+    droneSprite.src = 'enemy_dron.png';
+    const droneAttackSprite = new Image();
+    droneAttackSprite.src = 'ataques dron.png';
+    const cristiSprite = new Image();
+    cristiSprite.src = 'enemy_cristi.png';
+    const cristiAttackSprite = new Image();
+    cristiAttackSprite.src = 'ataques cristina.png';
+    const dialogueMilei = new Image();
+    dialogueMilei.src = 'dialogue_milei.png';
+    const dialogueCristina = new Image();
+    dialogueCristina.src = 'dialogue_cristina.png';
+    const fmiSprite = new Image();
+    fmiSprite.src = 'fmi.png';
+    const keys = {};
+    const resize=()=>{ const r=canvas.getBoundingClientRect(); dpr=Math.min(devicePixelRatio||1,2); W=r.width; H=r.height; canvas.width=W*dpr; canvas.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); };
+    addEventListener('resize',resize); resize();
+    const rand=(a,b)=>Math.random()*(b-a)+a, clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+    function reset(){ score=0;lives=3;level=1;wave=1;waveSpawned=0;waveSize=6;waveBreak=0;bossActive=false;bossDefeated=false;dialogueActive=false;dialogueStep=0;dialogueTime=0;fmiActive=false;fmiUsed=false;shake=0;spawn=0;shot=0;enemyShot=0;specialCharge=0;specialTime=0;specialShot=0;specialKeyWasDown=false;bullets=[];enemyBullets=[];enemies=[];explosions=[];cristiDeaths=[];particles=[]; player={x:W/2,y:H-92,w:58,h:52,inv:0}; stars=Array.from({length:90},()=>({x:rand(0,W),y:rand(0,H),r:rand(.5,1.8),s:rand(10,42)})); }
+    function startGame(){ reset(); bgScroll=0; state='play'; start.style.display='none'; last=performance.now(); raf=requestAnimationFrame(loop); }
+    document.querySelector('#startBtn').onclick=startGame;
+    // La discusión avanza automáticamente: 3 segundos por intervención.
+    addEventListener('keydown',e=>{ keys[e.code]=true; if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyS'].includes(e.code))e.preventDefault(); if(e.code==='KeyP'&&state==='play')state='pause';else if(e.code==='KeyP'&&state==='pause'){state='play';last=performance.now();raf=requestAnimationFrame(loop);} });
+    addEventListener('keyup',e=>keys[e.code]=false);
+    document.querySelectorAll('[data-key]').forEach(b=>{ const k=b.dataset.key; const down=e=>{e.preventDefault();keys[k]=true;b.setPointerCapture?.(e.pointerId);}; const up=e=>{e.preventDefault();keys[k]=false;}; b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up); });
+    canvas.addEventListener('pointerdown',e=>{if(!fmiActive)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width,y=(e.clientY-r.top)*H/r.height,pw=Math.min(W-26,560),ph=Math.min(H-50,410),px=(W-pw)/2,by=(H-ph)/2+ph-62,bw=Math.min(150,(pw-42)/2);if(y>=by&&y<=by+42){if(x< W/2)fmiDecision(true);else fmiDecision(false);}});
+    addEventListener('keydown',e=>{if(fmiActive&&(e.code==='KeyY'||e.code==='Digit1')){e.preventDefault();fmiDecision(true);}else if(fmiActive&&(e.code==='KeyN'||e.code==='Digit2')){e.preventDefault();fmiDecision(false);}});
+    function text(t,x,y,size,color,align='center'){ctx.font=`900 ${size}px system-ui, sans-serif`;ctx.fillStyle=color;ctx.textAlign=align;ctx.fillText(t,x,y);}
+    function startDialogue(){dialogueActive=true;dialogueStep=0;dialogueTime=0;}
+    function advanceDialogue(){if(!dialogueActive)return;if(dialogueStep===0)dialogueStep=1;else{dialogueActive=false;spawnBoss();}}
+    function showGameOver(){state='over';start.style.display='grid';start.querySelector('.kicker').textContent='TE QUEDASTE SIN DÓLARES';start.querySelector('h1').innerHTML='¡TE GANÓ<br>LA CASTA!';start.querySelector('.subtitle').innerHTML=`Puntaje: <b>${score}</b> · Te volviste un cabeza de termo.`;start.querySelector('#startBtn').textContent='Jugar de nuevo';}
+    function fmiDecision(save){if(!fmiActive)return;fmiActive=false;if(save){fmiUsed=true;lives=1;player.inv=2;state='play';}else showGameOver();}
+    function drawFmiPrompt(){const pw=Math.min(W-26,560),ph=Math.min(H-50,410),px=(W-pw)/2,py=(H-ph)/2;ctx.fillStyle='#050914ee';ctx.fillRect(0,0,W,H);ctx.fillStyle='#101a31';ctx.strokeStyle='#8cc7ff';ctx.lineWidth=3;ctx.fillRect(px,py,pw,ph);ctx.strokeRect(px,py,pw,ph);text('RESCATE DE EMERGENCIA',W/2,py+28,Math.min(15,W/25),'#8cc7ff');const imgW=Math.min(pw-30,420),imgH=imgW*(fmiSprite.naturalHeight||512)/(fmiSprite.naturalWidth||1280),ix=(W-imgW)/2,iy=py+42;if(fmiSprite.complete&&fmiSprite.naturalWidth)ctx.drawImage(fmiSprite,ix,iy,imgW,imgH);text('¿QUERÉS QUE TE SALVE EL FMI?',W/2,iy+imgH+28,Math.min(19,W/22),'#fbd38d');const bw=Math.min(150,(pw-42)/2),by=py+ph-62;ctx.fillStyle='#36d399';ctx.fillRect(px+14,by,bw,42);ctx.fillStyle='#ee526b';ctx.fillRect(px+pw-bw-14,by,bw,42);text('SÍ',px+14+bw/2,by+28,18,'#071426');text('NO',px+pw-bw/2-14,by+28,18,'#fff');}
+    function pixelPortrait(x,y,s,kind){const old=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=false;const r=(dx,dy,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x+dx*s,y+dy*s,w*s,h*s);};const p=kind==='milei'?{hair:'#5b351f',skin:'#e7a879',shirt:'#315d9b',light:'#78a6df'}:{hair:'#211b2e',skin:'#e5a477',shirt:'#8f254d',light:'#d95f83'};r(2,2,28,4,'#0b1020');r(0,6,32,25,p.hair);r(5,9,22,17,p.skin);r(3,8,26,6,p.hair);r(5,13,4,3,'#fff');r(21,13,4,3,'#fff');r(6,14,3,3,'#18233d');r(22,14,3,3,'#18233d');r(13,16,6,3,'#c77b69');r(11,21,10,2,'#5d2138');r(2,25,28,13,p.shirt);r(7,27,18,4,p.light);r(0,37,32,3,'#fbd38d');ctx.imageSmoothingEnabled=old;}
+    function drawDialogue(){const pad=Math.max(12,W*.045),pw=Math.min(560,W-pad*2),ph=Math.min(330,H*.52),px=(W-pw)/2,py=Math.max(72,(H-ph)/2);ctx.fillStyle='#050914dd';ctx.fillRect(0,0,W,H);ctx.fillStyle='#101a31f5';ctx.strokeStyle='#fbd38d';ctx.lineWidth=3;ctx.fillRect(px,py,pw,ph);ctx.strokeRect(px,py,pw,ph);text('INTERLUDIO: DISCUSIÓN POLÍTICA',W/2,py+26,Math.min(15,W/24),'#8cc7ff');const milei=dialogueStep===0;const faceX=milei?px+26:px+pw-58;pixelPortrait(faceX,py+56,Math.max(3,Math.min(5,pw/105)),milei?'milei':'cristina');const name=milei?'MILEI':'CRISTINA';const quote=milei?'Saludos, Cris, esto va para vos':'Por favor, Presidente... Controle su ira y ordene sus ideas';text(name, milei?px+30:px+pw-30,py+145,12,milei?'#fbd38d':'#ff8fb5',milei?'left':'right');const max=Math.max(12,Math.min(22,pw/20));ctx.textAlign=milei?'left':'right';ctx.font=`900 ${max}px system-ui, sans-serif`;ctx.fillStyle='#fff7e8';const tx=milei?px+112:px+pw-112;ctx.fillText(quote,tx,py+100);text('TOCÁ LA PANTALLA  ·  ESPACIO / ENTER PARA RESPONDER',W/2,py+ph-22,Math.min(10,W/35),'#a9b8d7');}
+    function drawBackground(dt){
+      if(backgroundSprite.complete&&backgroundSprite.naturalWidth){
+        // En vertical usamos todo el ancho original para conservar los carteles de los bordes.
+        // El recorrido se repite solo en Y, sin recortar lateralmente la ilustración.
+        const scale=W/backgroundSprite.naturalWidth;
+        const dw=backgroundSprite.naturalWidth*scale,dh=backgroundSprite.naturalHeight*scale;
+        const y=-(bgScroll%dh);
+        // Cubrimos toda la pantalla aunque la imagen escalada sea más baja que el viewport.
+        for(let yy=y; yy<H; yy+=dh) ctx.drawImage(backgroundSprite,(W-dw)/2,yy,dw,dh);
+        ctx.fillStyle='#08112466';ctx.fillRect(0,0,W,H);
+      }else{
+        ctx.fillStyle='#080d1d';ctx.fillRect(0,0,W,H);
+        for(const s of stars){s.y+=s.s*dt/1000;if(s.y>H)s.y=-2;ctx.fillStyle=`rgba(180,210,255,${.25+s.r/3})`;ctx.fillRect(s.x,s.y,s.r,s.r);}
+        ctx.strokeStyle='#162a50';ctx.lineWidth=1;for(let y=H*.2;y<H;y+=65){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+      }
+      if(explosionSprite.complete&&explosionSprite.naturalWidth){
+        const frameW=explosionSprite.naturalWidth/8;
+        for(const x of explosions){const frame=x.fixedFrame??Math.min(7,Math.floor(x.age/.09));ctx.drawImage(explosionSprite,frameW*frame,0,frameW,explosionSprite.naturalHeight,x.x-54,x.y-54,108,108);}
+      }
+      if(cristiSprite.complete&&cristiSprite.naturalWidth){
+        const frameW=cristiSprite.naturalWidth/6;
+        for(const x of cristiDeaths){const frame=x.age<.38?4:5;ctx.drawImage(cristiSprite,frameW*frame,0,frameW,cristiSprite.naturalHeight,x.x-64,x.y-64,128,128);}
+      }
+    }
+    function drawF16(p){
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.globalAlpha=p.inv>0&&Math.floor(p.inv*10)%2?0.3:1;
+      ctx.shadowColor='#65a8ff';
+      ctx.shadowBlur=18;
+      if(f16Sprite.complete && f16Sprite.naturalWidth){
+        // El spritesheet contiene 8 objetos iguales: usamos el segundo (índice 1).
+        const frameW=f16Sprite.naturalWidth/8;
+        ctx.drawImage(f16Sprite,frameW,0,frameW,f16Sprite.naturalHeight,-39,-54,78,108);
+      } else {
+        ctx.fillStyle='#e9eef5';ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(10,-8);ctx.lineTo(30,17);ctx.lineTo(10,14);ctx.lineTo(4,29);ctx.lineTo(-4,29);ctx.lineTo(-10,14);ctx.lineTo(-30,17);ctx.lineTo(-10,-8);ctx.closePath();ctx.fill();
+      }
+      ctx.restore();
+    }
+    function drawBombonera(e){
+      ctx.save();
+      ctx.translate(e.x,e.y);
+      ctx.rotate(Math.sin(e.t*2)*.06);
+      ctx.shadowColor='#5aa2ff';
+      ctx.shadowBlur=15;
+      if(bomboneraSprite.complete && bomboneraSprite.naturalWidth){
+        // Este spritesheet contiene 4 estados: intacta (2), primer golpe (3), segundo golpe (4).
+        const frameW=bomboneraSprite.naturalWidth/4;
+        const frameIndex=e.hp===3?1:e.hp===2?2:3;
+        ctx.drawImage(bomboneraSprite,frameW*frameIndex,0,frameW,bomboneraSprite.naturalHeight,-42,-45,84,90);
+      } else {
+        ctx.fillStyle='#1d4ed8';ctx.beginPath();ctx.ellipse(0,0,35,22,0,0,7);ctx.fill();ctx.fillStyle='#f4d03f';ctx.fillRect(-31,-5,62,10);text('BOCA',0,5,10,'#fff');
+      }
+      ctx.restore();
+    }
+    function drawCristinave(e){ ctx.save();ctx.translate(e.x,e.y);ctx.rotate(Math.sin(e.t*1.6)*.04);ctx.shadowColor='#ff6b9a';ctx.shadowBlur=18;ctx.fillStyle='#ffd6e5';ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(38,-4);ctx.lineTo(31,22);ctx.lineTo(-31,22);ctx.lineTo(-38,-4);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#f59eae';ctx.fillRect(-27,0,54,22);ctx.fillStyle='#fff';ctx.fillRect(-25,3,50,3);ctx.fillStyle='#75aadb';ctx.fillRect(-25,7,50,4);ctx.fillStyle='#fff';ctx.fillRect(-25,11,50,3);ctx.fillStyle='#f5c2d0';ctx.beginPath();ctx.arc(-12,-2,6,0,7);ctx.arc(12,-2,6,0,7);ctx.fill();text('CRISTINAVE',0,36,8,'#ffd6e5');ctx.restore(); }
+    function drawDron(e){ctx.save();ctx.translate(e.x,e.y);ctx.shadowColor='#60a5fa';ctx.shadowBlur=15;if(droneSprite.complete&&droneSprite.naturalWidth){const frameW=droneSprite.naturalWidth/3,frameH=droneSprite.naturalHeight/2;ctx.drawImage(droneSprite,0,0,frameW,frameH,-42,-42,84,84);}ctx.restore();}
+    function drawCristi(e){ctx.save();ctx.translate(e.x,e.y);ctx.shadowColor='#ff4f81';ctx.shadowBlur=24;if(cristiSprite.complete&&cristiSprite.naturalWidth){const frameW=cristiSprite.naturalWidth/6;const current=clamp(e.frameFloat,0,3);const lo=Math.floor(current),hi=Math.min(3,lo+1),blend=current-lo;ctx.globalAlpha=1-blend;ctx.drawImage(cristiSprite,frameW*lo,0,frameW,cristiSprite.naturalHeight,-64,-64,128,128);if(hi!==lo){ctx.globalAlpha=blend;ctx.drawImage(cristiSprite,frameW*hi,0,frameW,cristiSprite.naturalHeight,-64,-64,128,128);}}ctx.restore();}
+    function drawEnemy(e){e.type==='bombonera'?drawBombonera(e):e.type==='dron'?drawDron(e):drawCristi(e);}
+    function circle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    function boom(x,y,color='#fbd38d'){for(let i=0;i<14;i++)particles.push({x,y,vx:rand(-140,140),vy:rand(-140,140),life:rand(.3,.7),max:.7,color});}
+    function fire(){ if(shot>0)return; shot=.17; bullets.push({x:player.x,y:player.y-30,vy:-600,w:4,h:18}); }
+    function fireSpecial(){ if(specialCharge<100||specialTime>0)return; specialCharge=0; specialTime=5; specialShot=0; boom(player.x,player.y-28,'#67e8f9'); }
+    function fireSpecialBullet(){ bullets.push({x:player.x,y:player.y-38,vy:-720,w:18,h:52,special:true}); }
+    function enemyFire(e){
+      e.mateCount++;
+      let type,rot=0;
+      if(e.type==='cristi'){
+        type=e.mateCount%3===0?'cristiCoca':'cristiChori';
+      }else if(e.type==='dron'){
+        type=e.mateCount%3===0?'droneBag':'dronePlan';
+      }else{
+        type=e.mateCount%3===0?'humo':'mate';
+        rot=type==='mate'?rand(0,7):0;
+      }
+      enemyBullets.push({x:e.x,y:e.y+22,vy:rand(120,190)+level*12,type,rot,age:0,attackFrame:0});
+    }
+    function spawnEnemy(){ const type=Math.random()<.25?'dron':'bombonera'; waveSpawned++; enemies.push({x:rand(60,W-60),y:-45,w:type==='dron'?58:54,h:type==='dron'?52:42,type,t:0,hp:type==='dron'?1:3,v:rand(24,52)+level*2,mateCount:0}); }
+    function spawnBoss(){bossActive=true;level=4;enemies.push({x:W/2,y:-130,w:120,h:115,type:'cristi',t:0,hp:8,v:28,mateCount:0,frameFloat:0,frameTarget:0});}
+    function hit(a,b){return Math.abs(a.x-b.x)<(a.w+b.w)/2&&Math.abs(a.y-b.y)<(a.h+b.h)/2;}
+    function update(dt){
+      if(fmiActive)return;
+      const dirX=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);
+      const dirY=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);
+      player.x=clamp(player.x+dirX*360*dt,35,W-35);
+      player.y=clamp(player.y+dirY*360*dt,82,H-55);
+      player.inv=Math.max(0,player.inv-dt);
+      shot-=dt; spawn-=dt; enemyShot-=dt; if(keys.Space)fire(); if(keys.KeyE&&!specialKeyWasDown)fireSpecial(); specialKeyWasDown=!!keys.KeyE; if(specialTime>0){specialTime=Math.max(0,specialTime-dt);specialShot-=dt;if(specialShot<=0){fireSpecialBullet();specialShot=.14;}} if(dialogueActive){dialogueTime+=dt;if(dialogueTime>=3){if(dialogueStep===0){dialogueStep=1;dialogueTime=0;}else{dialogueActive=false;dialogueTime=0;spawnBoss();}}}
+      if(backgroundSprite.complete&&backgroundSprite.naturalWidth){
+        // Debe coincidir con la escala usada al dibujar para que el loop no salte.
+        const bgScale=W/backgroundSprite.naturalWidth;
+        const bgHeight=backgroundSprite.naturalHeight*bgScale;
+        bgScroll=(bgScroll-55*dt+bgHeight)%Math.max(1,bgHeight);
+      }
+      if(!bossActive&&!bossDefeated){
+        if(waveBreak>0)waveBreak-=dt;
+        else if(waveSpawned<waveSize){if(spawn<=0){spawn=Math.max(.6,1.45-level*.04);spawnEnemy();}}
+        else if(!dialogueActive&&enemies.length===0){if(wave<3){wave++;level=wave;waveSpawned=0;waveSize=6+wave*2;waveBreak=1.5;}else startDialogue();}
+      }
+      if(enemyShot<=0&&enemies.length){enemyShot=Math.max(.35,1.2-level*.04);enemyFire(enemies[Math.floor(Math.random()*enemies.length)]);}
+      bullets.forEach(b=>b.y+=b.vy*dt); bullets=bullets.filter(b=>b.y>-20);
+      enemyBullets.forEach(b=>{b.y+=b.vy*dt;b.age+=dt;if(b.type==='mate')b.rot+=dt*4}); enemyBullets=enemyBullets.filter(b=>b.y<H+35);
+      for(const e of enemies){e.t+=dt;if(e.type==='cristi'){e.y=clamp(e.y+e.v*dt,135,165);e.x=W/2+Math.sin(e.t*.7)*Math.min(150,W*.22);e.frameFloat+=(e.frameTarget-e.frameFloat)*Math.min(1,dt*9);}else e.y+=e.v*dt;}
+      for(let i=bullets.length-1;i>=0;i--)for(let j=enemies.length-1;j>=0;j--)if(hit({x:bullets[i].x,y:bullets[i].y,w:bullets[i].w||7,h:bullets[i].h||18},enemies[j])){
+        const e=enemies[j]; bullets.splice(i,1); e.hp--; specialCharge=Math.min(100,specialCharge+12.5); boom(e.x,e.y,e.type==='cristi'?'#ff6b9a':'#68a8ff');
+        if(e.type==='cristi'){e.frameTarget=Math.min(3,Math.floor((8-e.hp)*4/8));if(e.hp<=0){cristiDeaths.push({x:e.x,y:e.y,age:0});score+=1000;bossDefeated=true;bossActive=false;enemies.splice(j,1);}}
+        else if(e.hp<=0){explosions.push({x:e.x,y:e.y,age:0,fixedFrame:e.type==='dron'?4:undefined});score+=e.type==='dron'?75:100;if(score>0&&score%1000<260)level++;enemies.splice(j,1);} break;
+      }
+      for(const e of enemies)if(e.y>H+35){enemies.splice(enemies.indexOf(e),1);lives--;shake=.3;}
+      for(let i=enemyBullets.length-1;i>=0;i--)if(player.inv<=0&&hit({x:player.x,y:player.y,w:32,h:35},{x:enemyBullets[i].x,y:enemyBullets[i].y,w:22,h:24})){enemyBullets.splice(i,1);lives--;player.inv=1.5;shake=.35;boom(player.x,player.y,'#ff6b9a');}
+      for(const e of enemies)if(player.inv<=0&&hit(player,e)){lives--;player.inv=1.5;shake=.35;boom(player.x,player.y,'#ff6b9a');}
+      explosions.forEach(x=>x.age+=dt); explosions=explosions.filter(x=>x.age<.72);
+      cristiDeaths.forEach(x=>x.age+=dt); cristiDeaths=cristiDeaths.filter(x=>x.age<.76);
+      if(bossDefeated&&cristiDeaths.length===0){state='over';start.style.display='grid';start.querySelector('.kicker').textContent='JEFA DERROTADA';start.querySelector('h1').innerHTML='¡VENCISTE<br>A LA CASTA!';start.querySelector('.subtitle').innerHTML=`Puntaje final: <b>${score}</b> · La libertad avanza.`;start.querySelector('#startBtn').textContent='Jugar de nuevo';}
+      particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}); particles=particles.filter(p=>p.life>0);
+      if(lives<=0&&!fmiActive){if(!fmiUsed){fmiActive=true;bullets=[];enemyBullets=[];}else showGameOver();}
+    }
+    function draw(){ctx.save();if(shake>0){ctx.translate(rand(-5,5),rand(-5,5));shake-=.016;}drawBackground(16);for(const b of bullets){ctx.save();ctx.translate(b.x,b.y);ctx.shadowColor='#8cc7ff';ctx.shadowBlur=14;if(projectileSprite.complete&&projectileSprite.naturalWidth){const frameW=projectileSprite.naturalWidth/8;ctx.drawImage(projectileSprite,0,0,frameW,projectileSprite.naturalHeight,-10,-25,20,50);}else{ctx.fillStyle='#fbd38d';ctx.fillRect(-2,-10,4,18);}ctx.restore();}for(const b of enemyBullets){ctx.save();ctx.translate(b.x,b.y);if(b.type==='mate'){if(projectileSprite.complete&&projectileSprite.naturalWidth){const frameW=projectileSprite.naturalWidth/8;ctx.drawImage(projectileSprite,frameW*4,0,frameW,projectileSprite.naturalHeight,-21,-31,42,62);}else{ctx.fillStyle='#9a5b31';ctx.fillRect(-10,-10,20,20);ctx.fillStyle='#fbd38d';ctx.fillRect(-9,-13,18,5);text('M',0,7,10,'#fff');}}else if(b.type==='dronePlan'||b.type==='droneBag'){if(droneAttackSprite.complete&&droneAttackSprite.naturalWidth){const frameW=droneAttackSprite.naturalWidth/2,frameH=droneAttackSprite.naturalHeight;const col=b.type==='dronePlan'?0:1;ctx.drawImage(droneAttackSprite,frameW*col,0,frameW,frameH,-22,-28,44,56);}}else if(b.type==='cristiChori'||b.type==='cristiCoca'){if(cristiAttackSprite.complete&&cristiAttackSprite.naturalWidth){const frameW=cristiAttackSprite.naturalWidth/2;const col=b.type==='cristiChori'?0:1;ctx.drawImage(cristiAttackSprite,frameW*col,0,frameW,cristiAttackSprite.naturalHeight,-25,-30,50,60);}}else{ctx.rotate(b.rot);if(projectileSprite.complete&&projectileSprite.naturalWidth){const frameW=projectileSprite.naturalWidth/8;ctx.drawImage(projectileSprite,frameW*6,0,frameW,projectileSprite.naturalHeight,-25,-33,50,66);}else{circle(0,0,16,'#9ca3af');circle(-13,-5,10,'#6b7280');circle(15,0,9,'#d1d5db');}}ctx.restore();}enemies.forEach(drawEnemy);drawF16(player);for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/p.max);circle(p.x,p.y,Math.max(1,p.life*7),p.color);}ctx.globalAlpha=1;ctx.fillStyle='#101a31dd';ctx.fillRect(0,0,W,50);text(`SCORE ${String(score).padStart(6,'0')}`,18,31,16,'#fbd38d','left');text(`RONDA ${level}`,W/2,31,14,'#8cc7ff');text(`VIDAS ${'✈ '.repeat(Math.max(0,lives))}`,W-18,31,14,'#f9a8d4','right');if(state==='pause'){ctx.fillStyle='#080d1de8';ctx.fillRect(0,0,W,H);text('PAUSA',W/2,H/2,42,'#fbd38d');text('Presioná P para continuar',W/2,H/2+35,14,'#dce5fb');}ctx.restore();}
+    const baseDraw=draw;
+    draw=()=>{baseDraw();for(const b of bullets)if(b.special){ctx.save();ctx.translate(b.x,b.y);ctx.shadowColor='#67e8f9';ctx.shadowBlur=24;if(projectileSprite.complete&&projectileSprite.naturalWidth){const frameW=projectileSprite.naturalWidth/8;ctx.drawImage(projectileSprite,frameW*2,0,frameW,projectileSprite.naturalHeight,-16,-36,32,72);}else{ctx.fillStyle='#67e8f9';ctx.fillRect(-8,-25,16,50);}ctx.restore();}const bw=Math.min(230,W*.46),bx=W/2-bw/2;ctx.fillStyle='#071426cc';ctx.fillRect(bx,53,bw,16);ctx.strokeStyle='#67e8f9';ctx.strokeRect(bx,53,bw,16);ctx.fillStyle='#22d3ee';ctx.fillRect(bx+2,55,(bw-4)*specialCharge/100,12);text('LÁGRIMAS DE ZURDOS',bx+bw/2,66,9,'#e0f2fe');};
+    function drawDialogueImages(){const img=dialogueStep===0?dialogueMilei:dialogueCristina;ctx.fillStyle='#050914ee';ctx.fillRect(0,0,W,H);const iw=Math.min(W-24,560),ih=iw*(img.naturalHeight||512)/(img.naturalWidth||1280),ix=(W-iw)/2,iy=Math.max(64,(H-ih)/2);ctx.fillStyle='#101a31';ctx.strokeStyle=dialogueStep===0?'#38bdf8':'#d946ef';ctx.lineWidth=3;ctx.fillRect(ix-5,iy-5,iw+10,ih+10);ctx.strokeRect(ix-5,iy-5,iw+10,ih+10);if(img.complete&&img.naturalWidth)ctx.drawImage(img,ix,iy,iw,ih);else{text(dialogueStep===0?'MILEI':'CRISTINA',W/2,H/2,26,'#fff7e8');}text(`SIGUIENTE EN ${Math.max(1,Math.ceil(3-dialogueTime))}`,W/2,iy+ih+30,11,'#dce5fb');}
+    const gameHudDraw=draw;draw=()=>{gameHudDraw();if(dialogueActive)drawDialogueImages();};
+    function drawFmiPromptFixed(){const pw=Math.min(W-26,560),ph=Math.min(H-50,410),px=(W-pw)/2,py=(H-ph)/2;ctx.fillStyle='#050914ee';ctx.fillRect(0,0,W,H);ctx.fillStyle='#101a31';ctx.strokeStyle='#8cc7ff';ctx.lineWidth=3;ctx.fillRect(px,py,pw,ph);ctx.strokeRect(px,py,pw,ph);text('RESCATE DE EMERGENCIA',W/2,py+28,Math.min(15,W/25),'#8cc7ff');const ratio=(fmiSprite.naturalWidth||1280)/(fmiSprite.naturalHeight||512),imgH=Math.min(220,ph-155),imgW=Math.min(pw-40,imgH*ratio),ix=(W-imgW)/2,iy=py+42;if(fmiSprite.complete&&fmiSprite.naturalWidth)ctx.drawImage(fmiSprite,ix,iy,imgW,imgH);text('¿QUERÉS QUE TE SALVE EL FMI?',W/2,iy+imgH+28,Math.min(19,W/22),'#fbd38d');const bw=Math.min(150,(pw-42)/2),by=py+ph-62;ctx.fillStyle='#36d399';ctx.fillRect(px+14,by,bw,42);ctx.fillStyle='#ee526b';ctx.fillRect(px+pw-bw-14,by,bw,42);text('SÍ',px+14+bw/2,by+28,18,'#071426');text('NO',px+pw-bw/2-14,by+28,18,'#fff');}
+    const fmiHudDraw=draw;draw=()=>{fmiHudDraw();if(fmiActive)drawFmiPromptFixed();};
+    function loop(t){if(state==='play'){const dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();raf=requestAnimationFrame(loop);}else if(state==='pause'){draw();}}
+  })();
+  </script>
+</body>
+</html>
